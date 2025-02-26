@@ -3,6 +3,14 @@ class Deck:
         self.coordinate = (row, column)
         self.is_alive = is_alive
 
+    def __hash__(self) -> int:
+        return hash(self.coordinate)
+
+    def __eq__(self, other: type) -> bool:
+        if isinstance(other, Deck):
+            return self.coordinate == other.coordinate
+        return False
+
 
 class Ship:
     def __init__(
@@ -11,7 +19,9 @@ class Ship:
             end: tuple,
             is_drowned: bool = False
     ) -> None:
-        self.decks = [Deck(*deck) for deck in self.get_all_decks(start, end)]
+        self.decks = tuple(
+            Deck(*deck) for deck in self.get_all_decks(start, end)
+        )
         self.is_drowned = is_drowned
 
     def get_deck(self, row: int, column: int) -> Deck | None:
@@ -22,7 +32,8 @@ class Ship:
 
     def fire(self, row: int, column: int) -> None:
         coordinate = self.get_deck(row, column)
-        coordinate.is_alive = False
+        if coordinate:
+            coordinate.is_alive = False
 
     @staticmethod
     def get_all_decks(start: tuple[int], end: tuple[int]) -> list:
@@ -38,8 +49,20 @@ class Ship:
     def is_alive_deck(self, row: int, column: int) -> bool:
         return self.get_deck(row, column).is_alive
 
+    def __eq__(self, other: type) -> bool:
+        if isinstance(other, Ship):
+            return self.decks == other.decks
+        return False
+
+    def __hash__(self) -> int:
+        return hash(self.decks)
+
 
 class Battleship:
+    NEIGHBOR_OFFSETS = [(-1, -1), (-1, 0), (-1, 1),
+                        (0, -1), (0, 0), (0, 1),
+                        (1, -1), (1, 0), (1, 1)]
+
     def __init__(self, ships: list) -> None:
         # Create a dict `self.field`.
         # Its keys are tuples - the coordinates of the non-empty cells,
@@ -50,6 +73,33 @@ class Battleship:
         for ship in ships:
             for deck in ship.decks:
                 self.field[deck.coordinate] = ship
+        self._validate_field(ships)
+
+    def _validate_field(self, ships: list[Ship]) -> None:
+        count_of_ships = {
+            4: 0,
+            3: 0,
+            2: 0,
+            1: 0
+        }
+
+        assert len(set(self.field.values())) == 10, ValueError
+
+        for ship in ships:
+            count_of_ships[len(ship.decks)] += 1
+
+        assert count_of_ships == {4: 1, 3: 2, 2: 3, 1: 4}
+
+        for cell in self.field:
+            x, y = cell
+            ship = self.field[cell]
+            ship_coordinates = {deck.coordinate for deck in ship.decks}
+
+            assert all(
+                (x + dx, y + dy) not in self.field
+                or (x + dx, y + dy) in ship_coordinates
+                for dx, dy in self.NEIGHBOR_OFFSETS
+            )
 
     def fire(self, location: tuple) -> str:
         # This function should check whether the location
